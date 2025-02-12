@@ -1,0 +1,61 @@
+#include <iostream>
+#include <thread>
+#include <condition_variable>
+#include <mutex>
+
+enum PrinterType
+{
+    EVEN,
+    ODD
+};
+
+class PrintNumber
+{
+private:
+       int N;
+       int currCount = 1;
+       PrinterType nextType;
+       std::mutex mtx;
+       std::condition_variable cv;
+       
+public:
+        PrintNumber(int n):N(n),nextType(PrinterType::ODD)
+        {
+            std::cout<<"Starting "<<std::endl;
+        }
+        
+        void printnumber(PrinterType type)
+        {
+            while(currCount <= N)
+            {
+                std::unique_lock<std::mutex> lock(mtx);
+            
+                cv.wait(lock,[this,type]() {
+                    return type == nextType;
+                });
+                
+                if(currCount > N)   break;
+                std::cout<<"Printing Number for thread " << (type == PrinterType::ODD ? "OddThread " : "EvenThread ") << currCount <<std::endl;
+                currCount++;
+                nextType = (type == PrinterType::EVEN) ? PrinterType::ODD : PrinterType::EVEN;
+                cv.notify_all();
+                
+                 
+            }
+        }
+        
+    
+};
+
+int main()
+{
+    PrintNumber print(11);
+    
+    std::thread oddThread(&PrintNumber::printnumber,&print,PrinterType::ODD);
+    std::thread evenThread(&PrintNumber::printnumber, &print, PrinterType::EVEN);
+    
+    oddThread.join();
+    evenThread.join();
+
+    return 0;
+}
