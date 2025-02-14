@@ -1,0 +1,103 @@
+
+#include <iostream>
+#include <thread>
+#include <condition_variable>
+#include <mutex>
+#include <deque>
+#include <chrono>
+#include <unordered_map>
+#include <vector>
+
+class LRUCache
+{
+    private:
+        int cap;
+        std::mutex mtx;
+        std::deque<std::pair<int,int>> keyValuePairList;
+        std::unordered_map<int,std::deque<std::pair<int,int>>::iterator> lookUp;
+        
+    public:
+    
+        LRUCache(int capacity) : cap(capacity) 
+        {
+            
+        }
+        
+        int get(int key)
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            
+            if(lookUp.find(key) == lookUp.end())
+            {
+                return -1;
+            }
+            
+            auto it = lookUp[key];
+            int value = it->second;
+            keyValuePairList.erase(it);
+            keyValuePairList.push_front({key,value});
+            lookUp[key] = keyValuePairList.begin();
+            return value;
+            
+        }
+        
+        void put(int key, int value)
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            
+            if(lookUp.find(key) != lookUp.end())
+            {
+                auto it = lookUp[key];
+                keyValuePairList.erase(it);
+                //lookUp.erase(key);
+            }
+            else if(keyValuePairList.size() >= cap)
+            {
+                auto it = keyValuePairList.back();
+                lookUp.erase(it.first);
+                keyValuePairList.pop_back();
+            }
+            
+            keyValuePairList.push_front({key,value});
+            lookUp[key] = keyValuePairList.begin();
+        }
+        
+        
+        
+    
+};
+
+void processLRU(LRUCache& cache,int threadId)
+{
+    for(int i = 0; i < 5; i++)
+    {
+        int key = threadId * 10 + i;
+        cache.put(key, key * 2 * (i + 1));
+        
+        std::cout<<"Putting value in LRUCache from threadID " << threadId << " "<<key<<std::endl;
+        
+        int val = cache.get(key);
+        std::cout<<"Getting value from LRUCache from threadID "<< threadId << " "<<key<<" "<<val<<std::endl;
+    }
+    
+}
+
+
+int main()
+{
+    LRUCache lruCache(10);
+    std::vector<std::thread> threadList;
+    
+    for(int i = 1; i <= 3; i++)
+    {
+        threadList.emplace_back(std::thread(processLRU, std::ref(lruCache),i));
+    }
+    
+    for(auto& thread : threadList)
+    {
+        thread.join();
+    }
+    return 0;
+}
+
+
